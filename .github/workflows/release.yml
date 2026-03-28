@@ -27,6 +27,7 @@ jobs:
 
       - name: Configure Maven Settings
         run: |
+          mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << 'EOF'
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -52,22 +53,27 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Build with Maven
-        run: mvn clean compile -Dgpg.skip=true
-
-      - name: Run tests
-        run: mvn test -Dgpg.skip=true
-
-      - name: Deploy to Maven Central
-        run: mvn clean deploy -Dgpg.skip=false -DskipTests=false
+      - name: Build and Deploy to Maven Central
+        run: |
+          mvn clean deploy \
+            -Dgpg.skip=false \
+            -DskipTests=false \
+            -Dgpg.keyname="${{ secrets.GPG_KEY_NAME }}" \
+            -Dgpg.passphrase="" \
+            -Dgpg.executable=gpg \
+            --batch
         env:
-          GPG_KEY_NAME: ${{ secrets.GPG_KEY_NAME }}
+          MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: success()
         with:
-          files: target/*.jar target/*.jar.asc target/*.pom target/*.pom.asc
+          files: |
+            target/*.jar
+            target/*.jar.asc
+            target/*.pom
+            target/*.pom.asc
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
