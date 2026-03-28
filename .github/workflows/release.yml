@@ -25,14 +25,39 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: Decode GPG key
+      - name: Configure Maven Settings
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > ~/.gnupg/secring.gpg
-        shell: bash
+          cat > ~/.m2/settings.xml << 'EOF'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${{ secrets.OSSRH_USERNAME }}</username>
+                <password>${{ secrets.OSSRH_PASSWORD }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>ossrh</id>
+                <activation>
+                  <activeByDefault>true</activeByDefault>
+                </activation>
+                <properties>
+                  <gpg.keyname>${{ secrets.GPG_KEY_NAME }}</gpg.keyname>
+                  <gpg.passphrase>${{ secrets.GPG_PASSPHRASE }}</gpg.passphrase>
+                </properties>
+              </profile>
+            </profiles>
+          </settings>
+          EOF
 
-      - name: Set execute permission for GPG key
-        run: chmod 600 ~/.gnupg/secring.gpg
-        shell: bash
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > /tmp/private.key
+          gpg --batch --import /tmp/private.key
+          gpg --list-secret-keys
 
       - name: Configure Git
         run: |
@@ -46,17 +71,16 @@ jobs:
         run: mvn test -Dgpg.skip=true
 
       - name: Deploy to Maven Central
-        run: mvn deploy -P ossrh -DskipTests=false
+        run: mvn clean deploy -Dgpg.skip=false -DskipTests=false
         env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY_NAME: ${{ secrets.GPG_KEY_NAME }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
+        if: success()
         with:
-          files: target/*.jar
+          files: target/*.jar target/*.jar.asc target/*.pom target/*.pom.asc
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
