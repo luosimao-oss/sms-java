@@ -38,18 +38,6 @@ jobs:
                 <password>${{ secrets.OSSRH_PASSWORD }}</password>
               </server>
             </servers>
-            <profiles>
-              <profile>
-                <id>ossrh</id>
-                <activation>
-                  <activeByDefault>true</activeByDefault>
-                </activation>
-                <properties>
-                  <gpg.keyname>${{ secrets.GPG_KEY_NAME }}</gpg.keyname>
-                  <gpg.passphrase>${{ secrets.GPG_PASSPHRASE }}</gpg.passphrase>
-                </properties>
-              </profile>
-            </profiles>
           </settings>
           EOF
 
@@ -74,7 +62,6 @@ jobs:
         run: mvn clean deploy -Dgpg.skip=false -DskipTests=false
         env:
           GPG_KEY_NAME: ${{ secrets.GPG_KEY_NAME }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
