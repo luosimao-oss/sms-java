@@ -47,6 +47,9 @@ jobs:
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > /tmp/private.key
           gpg --batch --import /tmp/private.key
           gpg --list-secret-keys
+          # 信任密钥，防止签名时出现交互提示
+          KEY_ID=$(gpg --list-keys --with-colons | grep "^pub" | cut -d: -f5 | head -n 1)
+          echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key "$KEY_ID" trust || true
 
       - name: Configure Git
         run: |
@@ -59,8 +62,9 @@ jobs:
             -Dgpg.skip=false \
             -DskipTests=false \
             -Dgpg.keyname="${{ secrets.GPG_KEY_NAME }}" \
-            -Dgpg.passphrase="" \
+            -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}" \
             -Dgpg.executable=gpg \
+            -Dgpg.args="--pinentry-mode loopback" \
             --batch
         env:
           MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
